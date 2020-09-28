@@ -6,7 +6,7 @@
 
 I would like to suggest a unify API for creating a global, contextual and local states. 
 This addition to React will hopefully completely mitigate the need for 3rd party state management libraries, and will solve some of the biggest problems
-of hooked functions- depending on call order for inferring the state, and inability to share state with class components.
+of hooked functions- hooks depends on call order for inferring the state, and they cannot be shared with class components.
 
 # Basic example
 
@@ -26,16 +26,15 @@ someState.increaseCount();
 console.log(someState.getCount()); // prints 1;
 ```
 
-You can see that the type of `someState` is actually what we return from the function in the second parameter (the actions generator function). This way, the only
-way to interact with the state is by using the actions.
+As you can see, `React.GlobalState` returns the actions object, this way, the only way to interact with the state is by using the actions.
 
 # Motivation
 
 Currently, there are 2 ways to define local state (this.state for classes and useState for function components), there are two different API's for creating 
-and consuming contextual state (React.Context), depending if you are using hooks of class components, and there is no way for creating a global state.
+and consuming contextual state (React.Context), depending on if you are using hooks or class components, and there is no way for creating a global state.
 
-Currently if you are using React Native with a native navigation solution, the only way to share state between screen is by using a 3rd party library solution for creating a global state (aka store), because different screens don't 
-share the same React root. Instead of suggesting a a new API for creating a global state with React, I think we can unify the way we are creating a state, 
+If you are using React Native with a native navigation solution, the only way to share state between screens is by using a 3rd party library solution for creating a global state (aka store), because different screens don't 
+share the same React root. Instead of suggesting a new API for creating a global state with React, I think we can unify the way we are creating a state, 
 thus addressing the problem of creating global state and solving some of the problems that hooks introduced to the framework, all of this by keeping the API 
 small and concise.
 
@@ -49,7 +48,7 @@ const contextualTest = React.Context(initialState, actions});
 const localState = React.State(initialState, actions});
 ```
 
-As you can see, the api is the same, and the separation is for readability purposes only. We could introduce A single `React.state()` api, and the type of state will be defined by how you use it, But I found it more safe to introduce a new command for every type of state.
+As you can see, the api is the same, and the separation is for readability purposes only. We could introduce a single `React.state()` api, and the type of the state (global, contextual or local) will be defined by how you use it, But I find it safer to introduce a separate command for every type of state.
 
 
 Here is the formal declaration of such a state:
@@ -105,38 +104,38 @@ inside some contextual store:
 ```javascript
 //indise someContext.js
 import React from 'react';
-export const context = React.Context({name: 'bob'}, (state) => ({
+export const someContext = React.Context({name: 'bob'}, (state) => ({
     getName: () => state.name,
     setName: (name) => state.name = name
 });
 ```
 usage: 
 ```javascript
-import {context} from './someContext';
+import {someContext} from './someContext';
 function ProfileCard() {
      return (
         <View>
-           <p>{context.getName()}</p>
+           <p>{someContext.getName()}</p>
            <div onClick={() => store.setName('alice')}></div>
         </View> 
       );
 }
 ```
 
-As you can see, contextual state and global state usage is exactly the same. The only difference is that when we use contextual state, React will make sure that this context was provided by some component upper in the hierarchy tree like this:
-```
+As you can see, the usage of contextual state and global state is exactly the same. The only difference is that when we use contextual state, React will make sure that this context was provided by some component upper in the hierarchy tree, and retrieve for us the correct instance of the state:
+```javascript
 import {ProvideContext} from 'react';
-import {context} from './someContext';
+import {someContext} from './someContext';
 function ProfileList() {
    return (
-     <ProvideContext context={context}>
+     <ProvideContext context={someContext}>
         <ProfileCard/>
      </ProvideContext>    
    )
 }
 ```
 
-So there is a little bit of magic here. We are using the context as a global object, but behind the scenes, React will make sure that we are interacting with the correct instance. It's the exact same piece magic that we have with UseState for hooks.
+So there is a little bit of magic here. We are using the context as a global object, but behind the scenes, React will make sure that we are interacting with the correct instance. It's the exact same piece of magic that we have with UseState for hooks.
 
 ### Local State
 
@@ -168,16 +167,16 @@ function Bar() {
 }
 ```
 
-Again, same API, same magic behind the scenes that makes each component get the correct local state. What's interesting here, is that we can use as many local State objects as we want, and we don't need to pay attention to the call order, because we can uniquely identify the states.
+Again, same API, same magic behind the scenes that makes each component get the correct local state. What's interesting here, is that we can use as many local State objects as we want, and we don't need to pay attention to the call order, because we can uniquely identify the states, so no need for weird rules like "don't put custom hooks inside an `if` statement".
 
 
 # Additional Api
 ### Support effects in local state:
-In order to fully support the capabilities of hooks, we need to allow something like `useEffect` to interact with the state. Here is one suggestion:
+In order to fully support the capabilities of hooks, we need to somehow mimic `useEffect`. Here is one suggestion:
 ```javascript
 const localState = React.LocalState(initialState, actions, effects);
 ```
-The effects props is a function that receives the state and props as a parameter, and is being called on every render (and on unMount) of the host component (the component that is currently using the local state). The return value will be used as a cleanup, just like `useEffect`:
+The effects props is a function that receives the state, and also the props of the host component (the component that is currently using the local state). This function will be called on every render (and on unMount). The return value will be used as a cleanup, just like `useEffect`:
 ```javascript
 (state, props) => {
    subscribe();
@@ -194,8 +193,9 @@ We should mimic the exact same performance optimizations of Mobx- For every comp
 
 # Drawbacks
 
-The API is a bit magical, but it's the same magic of Hooks (keeping track of the currently rendered component);
-
+* The API is a bit magical, but it's the same magic of Hooks (keeping track of the currently rendered component);
+* The community is just starting to get used to the hooks API, and then this API is will make some of the features of hooks to become useless.
+This is not the ideal way of moving forward, but I really think that this step is needed in order to clean some of the problems of hooks, and the lack of global state solutions.
 
 # Adoption strategy
 
